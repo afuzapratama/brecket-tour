@@ -1,0 +1,318 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  super_admin
+  admin
+  viewer
+}
+
+enum TournamentStatus {
+  draft
+  published
+  live
+  completed
+  archived
+}
+
+enum ParticipantStatus {
+  invited
+  confirmed
+  dropped
+}
+
+enum GroupStatus {
+  draft
+  live
+  completed
+  locked
+}
+
+enum StageType {
+  group
+  playoff
+  tiebreaker
+}
+
+enum MatchStatus {
+  scheduled
+  live
+  completed
+  disputed
+  cancelled
+}
+
+enum BracketType {
+  single_elimination
+  double_elimination
+}
+
+enum BracketStatus {
+  draft
+  live
+  completed
+  locked
+}
+
+model User {
+  id          String       @id @default(uuid()) @db.Uuid
+  email       String       @unique
+  displayName String?      @map("display_name")
+  role        UserRole     @default(viewer)
+  createdAt   DateTime     @default(now()) @map("created_at") @db.Timestamptz(6)
+  tournaments Tournament[]
+  auditLogs   AuditLog[]
+
+  @@map("users")
+}
+
+model Tournament {
+  id                String           @id @default(uuid()) @db.Uuid
+  name              String
+  slug              String           @unique
+  game              String
+  status            TournamentStatus @default(draft)
+  bannerUrl         String?          @map("banner_url")
+  logoUrl           String?          @map("logo_url")
+  region            String?
+  startDate         DateTime?        @map("start_date") @db.Timestamptz(6)
+  endDate           DateTime?        @map("end_date") @db.Timestamptz(6)
+  rules             String?
+  scoringConfig     Json             @default("{\"winPoints\":3,\"drawPoints\":1,\"lossPoints\":0,\"useKillPoints\":false,\"killPointValue\":0,\"useMapBonus\":false,\"mapWinPointValue\":0}") @map("scoring_config")
+  tiebreakerConfig  Json             @default("[\"points\",\"wins\",\"head_to_head\",\"map_diff\",\"kill_diff\",\"total_kills\",\"manual_seed\"]") @map("tiebreaker_config")
+  thirdPlaceEnabled Boolean          @default(false) @map("third_place_enabled")
+  createdById       String?          @map("created_by") @db.Uuid
+  createdAt         DateTime         @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime         @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  createdBy    User?                   @relation(fields: [createdById], references: [id], onDelete: SetNull)
+  participants TournamentParticipant[]
+  groups       Group[]
+  matches      Match[]
+  standings    StandingSnapshot[]
+  brackets     Bracket[]
+
+  @@map("tournaments")
+}
+
+model Team {
+  id           String                  @id @default(uuid()) @db.Uuid
+  name         String
+  tag          String?
+  logoUrl      String?                 @map("logo_url")
+  country      String?
+  createdAt    DateTime                @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime                @updatedAt @map("updated_at") @db.Timestamptz(6)
+  players      Player[]
+  participants TournamentParticipant[]
+
+  @@map("teams")
+}
+
+model Player {
+  id        String   @id @default(uuid()) @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  nickname  String
+  realName  String?  @map("real_name")
+  role      String?
+  country   String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Cascade)
+
+  @@map("players")
+}
+
+model TournamentParticipant {
+  id           String            @id @default(uuid()) @db.Uuid
+  tournamentId String            @map("tournament_id") @db.Uuid
+  teamId       String            @map("team_id") @db.Uuid
+  seed         Int?
+  status       ParticipantStatus @default(confirmed)
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tournament   Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  team         Team               @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  groupEntries GroupParticipant[]
+  matchesAsA   Match[]            @relation("MatchParticipantA")
+  matchesAsB   Match[]            @relation("MatchParticipantB")
+  matchesWon   Match[]            @relation("MatchWinner")
+  gamesWon     MatchGame[]        @relation("GameWinner")
+  standings    StandingSnapshot[]
+  bracketSlots BracketSlot[]
+
+  @@unique([tournamentId, teamId])
+  @@map("tournament_participants")
+}
+
+model Group {
+  id              String      @id @default(uuid()) @db.Uuid
+  tournamentId    String      @map("tournament_id") @db.Uuid
+  name            String
+  sortOrder       Int         @default(0) @map("sort_order")
+  topQualifyCount Int         @default(2) @map("top_qualify_count")
+  status          GroupStatus @default(draft)
+  createdAt       DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tournament   Tournament         @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  participants GroupParticipant[]
+  matches      Match[]
+  standings    StandingSnapshot[]
+  bracketSlots BracketSlot[]
+
+  @@unique([tournamentId, name])
+  @@map("groups")
+}
+
+model GroupParticipant {
+  id                 String @id @default(uuid()) @db.Uuid
+  groupId            String @map("group_id") @db.Uuid
+  participantId      String @map("participant_id") @db.Uuid
+  manualRankOverride Int?   @map("manual_rank_override")
+  tm                 Int    @default(0)
+
+  group       Group                 @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  participant TournamentParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, participantId])
+  @@map("group_participants")
+}
+
+model Match {
+  id                  String      @id @default(uuid()) @db.Uuid
+  tournamentId        String      @map("tournament_id") @db.Uuid
+  stageType           StageType   @map("stage_type")
+  groupId             String?     @map("group_id") @db.Uuid
+  bracketId           String?     @map("bracket_id") @db.Uuid
+  roundNumber         Int?        @map("round_number")
+  matchNumber         Int         @default(1) @map("match_number")
+  participantAId      String?     @map("participant_a_id") @db.Uuid
+  participantBId      String?     @map("participant_b_id") @db.Uuid
+  scoreA              Int?        @map("score_a")
+  scoreB              Int?        @map("score_b")
+  winnerParticipantId String?     @map("winner_participant_id") @db.Uuid
+  status              MatchStatus @default(scheduled)
+  scheduledAt         DateTime?   @map("scheduled_at") @db.Timestamptz(6)
+  streamUrl           String?     @map("stream_url")
+  locked              Boolean     @default(false)
+  createdAt           DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt           DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tournament   Tournament             @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  group        Group?                 @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  bracket      Bracket?               @relation(fields: [bracketId], references: [id], onDelete: SetNull)
+  participantA TournamentParticipant? @relation("MatchParticipantA", fields: [participantAId], references: [id], onDelete: SetNull)
+  participantB TournamentParticipant? @relation("MatchParticipantB", fields: [participantBId], references: [id], onDelete: SetNull)
+  winner       TournamentParticipant? @relation("MatchWinner", fields: [winnerParticipantId], references: [id], onDelete: SetNull)
+  games        MatchGame[]
+  bracketSlots BracketSlot[]
+
+  @@index([tournamentId, stageType])
+  @@index([groupId])
+  @@index([bracketId])
+  @@map("matches")
+}
+
+model MatchGame {
+  id                  String  @id @default(uuid()) @db.Uuid
+  matchId             String  @map("match_id") @db.Uuid
+  gameNumber          Int     @map("game_number")
+  mapName             String? @map("map_name")
+  scoreA              Int?    @map("score_a")
+  scoreB              Int?    @map("score_b")
+  killsA              Int     @default(0) @map("kills_a")
+  killsB              Int     @default(0) @map("kills_b")
+  deathsA             Int     @default(0) @map("deaths_a")
+  deathsB             Int     @default(0) @map("deaths_b")
+  winnerParticipantId String? @map("winner_participant_id") @db.Uuid
+
+  match  Match                  @relation(fields: [matchId], references: [id], onDelete: Cascade)
+  winner TournamentParticipant? @relation("GameWinner", fields: [winnerParticipantId], references: [id], onDelete: SetNull)
+
+  @@unique([matchId, gameNumber])
+  @@map("match_games")
+}
+
+model StandingSnapshot {
+  id              String   @id @default(uuid()) @db.Uuid
+  tournamentId    String   @map("tournament_id") @db.Uuid
+  groupId         String   @map("group_id") @db.Uuid
+  participantId   String   @map("participant_id") @db.Uuid
+  rank            Int
+  played          Int      @default(0)
+  wins            Int      @default(0)
+  draws           Int      @default(0)
+  losses          Int      @default(0)
+  points          Int      @default(0)
+  mapWins         Int      @default(0) @map("map_wins")
+  mapLosses       Int      @default(0) @map("map_losses")
+  mapDiff         Int      @default(0) @map("map_diff")
+  kills           Int      @default(0)
+  deaths          Int      @default(0)
+  killDiff        Int      @default(0) @map("kill_diff")
+  kdRatio         Decimal  @default(0) @map("kd_ratio") @db.Decimal(8, 2)
+  tiebreakerNotes String?  @map("tiebreaker_notes")
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  tournament  Tournament            @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  group       Group                 @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  participant TournamentParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([groupId, participantId])
+  @@index([tournamentId, groupId, rank])
+  @@map("standings_snapshots")
+}
+
+model Bracket {
+  id                 String        @id @default(uuid()) @db.Uuid
+  tournamentId       String        @map("tournament_id") @db.Uuid
+  type               BracketType   @default(single_elimination)
+  status             BracketStatus @default(draft)
+  generatedFromStage StageType?    @map("generated_from_stage")
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  tournament Tournament    @relation(fields: [tournamentId], references: [id], onDelete: Cascade)
+  matches    Match[]
+  slots      BracketSlot[]
+
+  @@map("brackets")
+}
+
+model BracketSlot {
+  id            String  @id @default(uuid()) @db.Uuid
+  bracketId     String  @map("bracket_id") @db.Uuid
+  matchId       String? @map("match_id") @db.Uuid
+  slotLabel     String  @map("slot_label")
+  sourceType    String  @default("manual") @map("source_type")
+  sourceGroupId String? @map("source_group_id") @db.Uuid
+  sourceRank    Int?    @map("source_rank")
+  participantId String? @map("participant_id") @db.Uuid
+
+  bracket     Bracket                @relation(fields: [bracketId], references: [id], onDelete: Cascade)
+  match       Match?                 @relation(fields: [matchId], references: [id], onDelete: SetNull)
+  sourceGroup Group?                 @relation(fields: [sourceGroupId], references: [id], onDelete: SetNull)
+  participant TournamentParticipant? @relation(fields: [participantId], references: [id], onDelete: SetNull)
+
+  @@map("bracket_slots")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  entityType String   @map("entity_type")
+  entityId   String   @map("entity_id")
+  action     String
+  beforeJson Json?    @map("before_json")
+  afterJson  Json?    @map("after_json")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
