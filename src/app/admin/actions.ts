@@ -151,6 +151,14 @@ async function setAdminFlash(
   );
 }
 
+async function handleInvalidActionData() {
+  await setAdminFlash(
+    "Action tidak bisa diproses karena data production database belum terbaca. Cek DATABASE_URL di Vercel.",
+    "warning",
+  );
+  refreshTournamentPages();
+}
+
 export async function signOut() {
   const supabase = await createSupabaseServerClient();
 
@@ -162,7 +170,7 @@ export async function signOut() {
 export async function updateTournament(formData: FormData) {
   await requireAdminSession();
 
-  const parsed = tournamentFormSchema.parse({
+  const parseResult = tournamentFormSchema.safeParse({
     tournamentId: formData.get("tournamentId"),
     name: formData.get("name"),
     game: formData.get("game"),
@@ -171,6 +179,13 @@ export async function updateTournament(formData: FormData) {
     rules: formData.get("rules"),
     thirdPlaceEnabled: formData.get("thirdPlaceEnabled") === "on",
   });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
 
   await prisma.tournament.update({
     where: { id: parsed.tournamentId },
@@ -191,7 +206,7 @@ export async function updateTournament(formData: FormData) {
 export async function addTournamentParticipant(formData: FormData) {
   await requireAdminSession();
 
-  const parsed = participantFormSchema.parse({
+  const parseResult = participantFormSchema.safeParse({
     tournamentId: formData.get("tournamentId"),
     teamName: formData.get("teamName"),
     teamTag: formData.get("teamTag"),
@@ -199,6 +214,13 @@ export async function addTournamentParticipant(formData: FormData) {
     logoUrl: formData.get("logoUrl"),
     seed: formData.get("seed"),
   });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
 
   const existingTeam = await prisma.team.findFirst({
     where: { name: { equals: parsed.teamName, mode: "insensitive" } },
@@ -252,9 +274,16 @@ export async function addTournamentParticipant(formData: FormData) {
 export async function removeTournamentParticipant(formData: FormData) {
   await requireAdminSession();
 
-  const parsed = participantIdSchema.parse({
+  const parseResult = participantIdSchema.safeParse({
     participantId: formData.get("participantId"),
   });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
 
   await prisma.tournamentParticipant.delete({
     where: { id: parsed.participantId },
@@ -267,11 +296,18 @@ export async function removeTournamentParticipant(formData: FormData) {
 export async function createGroup(formData: FormData) {
   await requireAdminSession();
 
-  const parsed = groupFormSchema.parse({
+  const parseResult = groupFormSchema.safeParse({
     tournamentId: formData.get("tournamentId"),
     name: formData.get("name"),
     topQualifyCount: formData.get("topQualifyCount"),
   });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
 
   const lastGroup = await prisma.group.findFirst({
     where: { tournamentId: parsed.tournamentId },
@@ -296,9 +332,16 @@ export async function createGroup(formData: FormData) {
 export async function deleteGroup(formData: FormData) {
   await requireAdminSession();
 
-  const parsed = groupIdSchema.parse({
+  const parseResult = groupIdSchema.safeParse({
     groupId: formData.get("groupId"),
   });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
 
   await prisma.group.delete({
     where: { id: parsed.groupId },
@@ -311,10 +354,17 @@ export async function deleteGroup(formData: FormData) {
 export async function assignParticipantToGroup(formData: FormData) {
   await requireAdminSession();
 
-  const parsed = groupParticipantFormSchema.parse({
+  const parseResult = groupParticipantFormSchema.safeParse({
     groupId: formData.get("groupId"),
     participantId: formData.get("participantId"),
   });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
 
   const targetGroup = await prisma.group.findUnique({
     where: { id: parsed.groupId },
@@ -357,9 +407,16 @@ export async function assignParticipantToGroup(formData: FormData) {
 export async function removeParticipantFromGroup(formData: FormData) {
   await requireAdminSession();
 
-  const parsed = groupParticipantIdSchema.parse({
+  const parseResult = groupParticipantIdSchema.safeParse({
     groupParticipantId: formData.get("groupParticipantId"),
   });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
 
   await prisma.groupParticipant.delete({
     where: { id: parsed.groupParticipantId },
@@ -372,10 +429,17 @@ export async function removeParticipantFromGroup(formData: FormData) {
 export async function updateGroupParticipantTm(formData: FormData) {
   await requireAdminSession();
 
-  const parsed = groupParticipantTmSchema.parse({
+  const parseResult = groupParticipantTmSchema.safeParse({
     groupParticipantId: formData.get("groupParticipantId"),
     tm: formData.get("tm"),
   });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
 
   await prisma.groupParticipant.update({
     where: { id: parsed.groupParticipantId },
@@ -389,9 +453,16 @@ export async function updateGroupParticipantTm(formData: FormData) {
 export async function generateGroupMatches(formData: FormData) {
   await requireAdminSession();
 
-  const parsed = groupIdSchema.parse({
+  const parseResult = groupIdSchema.safeParse({
     groupId: formData.get("groupId"),
   });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
 
   const group = await prisma.group.findUnique({
     where: { id: parsed.groupId },
@@ -464,7 +535,7 @@ export async function generateGroupMatches(formData: FormData) {
 export async function updateMatchResult(formData: FormData) {
   await requireAdminSession();
 
-  const parsed = updateMatchResultSchema.parse({
+  const parseResult = updateMatchResultSchema.safeParse({
     matchId: formData.get("matchId"),
     scoreA: formData.get("scoreA"),
     scoreB: formData.get("scoreB"),
@@ -473,6 +544,13 @@ export async function updateMatchResult(formData: FormData) {
     status: formData.get("status"),
     scheduledAt: formData.get("scheduledAt"),
   });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
 
   const winnerParticipantId =
     parsed.scoreA !== parsed.scoreB
@@ -667,9 +745,16 @@ async function advanceThirdPlaceLoser(matchId: string, loserParticipantId: strin
 export async function generatePlayoffs(formData: FormData) {
   await requireAdminSession();
 
-  const parsed = tournamentIdSchema.parse({
+  const parseResult = tournamentIdSchema.safeParse({
     tournamentId: formData.get("tournamentId"),
   });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
 
   const tournament = await prisma.tournament.findUnique({
     where: { id: parsed.tournamentId },
@@ -837,9 +922,16 @@ export async function generatePlayoffs(formData: FormData) {
 export async function clearPlayoffs(formData: FormData) {
   await requireAdminSession();
 
-  const parsed = tournamentIdSchema.parse({
+  const parseResult = tournamentIdSchema.safeParse({
     tournamentId: formData.get("tournamentId"),
   });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
 
   await prisma.$transaction(async (tx) => {
     const brackets = await tx.bracket.findMany({
@@ -873,13 +965,20 @@ export async function clearPlayoffs(formData: FormData) {
 export async function updatePlayoffResult(formData: FormData) {
   await requireAdminSession();
 
-  const parsed = updateMatchResultSchema.parse({
+  const parseResult = updateMatchResultSchema.safeParse({
     matchId: formData.get("matchId"),
     scoreA: formData.get("scoreA"),
     scoreB: formData.get("scoreB"),
     status: formData.get("status"),
     scheduledAt: formData.get("scheduledAt"),
   });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
 
   const participantAId = String(formData.get("participantAId") ?? "");
   const participantBId = String(formData.get("participantBId") ?? "");
