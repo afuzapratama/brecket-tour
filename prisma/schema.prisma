@@ -195,6 +195,7 @@ model Match {
   participantBId      String?     @map("participant_b_id") @db.Uuid
   scoreA              Int?        @map("score_a")
   scoreB              Int?        @map("score_b")
+  bestOf              Int         @default(1) @map("best_of")
   winnerParticipantId String?     @map("winner_participant_id") @db.Uuid
   status              MatchStatus @default(scheduled)
   scheduledAt         DateTime?   @map("scheduled_at") @db.Timestamptz(6)

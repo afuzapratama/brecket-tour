@@ -9,6 +9,7 @@ type BracketMatch = {
   status?: string;
   scoreA?: number | null;
   scoreB?: number | null;
+  bestOf: number;
   winnerParticipantId?: string | null;
   participantA?: {
     id: string;
@@ -122,7 +123,7 @@ function MatchCard({
         />
       </div>
       <p className="mt-2 px-1 text-xs uppercase text-muted-foreground">
-        {match.status ?? "scheduled"}
+        BO{match.bestOf} - {match.status ?? "scheduled"}
       </p>
     </article>
   );

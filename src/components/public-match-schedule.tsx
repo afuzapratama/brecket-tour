@@ -12,6 +12,7 @@ type ScheduleMatch = {
   scheduledAt?: Date | null;
   scoreA?: number | null;
   scoreB?: number | null;
+  bestOf?: number;
   participantA?: {
     team: {
       name: string;
@@ -86,6 +87,22 @@ function stageLabel(match: ScheduleMatch, finalRound: number) {
   }
 
   return "Playoff";
+}
+
+function bestOfLabel(match: ScheduleMatch, finalRound: number) {
+  if (match.bestOf) {
+    return `BO${match.bestOf}`;
+  }
+
+  if (match.stageType === "group") {
+    return "BO1";
+  }
+
+  if (match.roundNumber === finalRound && match.matchNumber === 1) {
+    return "BO5";
+  }
+
+  return "BO3";
 }
 
 function statusMeta(match: ScheduleMatch) {
@@ -176,6 +193,7 @@ export function PublicMatchSchedule({ matches }: { matches: ScheduleMatch[] }) {
     scheduledAt: null,
     scoreA: null,
     scoreB: null,
+    bestOf: 1,
     participantA: null,
     participantB: null,
   }));
@@ -248,6 +266,7 @@ export function PublicMatchSchedule({ matches }: { matches: ScheduleMatch[] }) {
                   const StatusIcon = statusMeta(match).icon;
                   const meta = statusMeta(match);
                   const stage = stageLabel(match, finalRound);
+                  const bestOf = bestOfLabel(match, finalRound);
 
                   return (
                     <article
@@ -282,8 +301,8 @@ export function PublicMatchSchedule({ matches }: { matches: ScheduleMatch[] }) {
                           >
                             {stage}
                           </p>
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Match {match.matchNumber}
+                          <p className="mt-1 text-xs font-semibold text-muted-foreground">
+                            {bestOf} - Match {match.matchNumber}
                           </p>
                         </div>
                       </div>

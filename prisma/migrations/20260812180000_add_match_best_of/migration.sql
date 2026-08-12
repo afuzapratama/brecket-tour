@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "matches" ADD COLUMN "best_of" INTEGER NOT NULL DEFAULT 1;

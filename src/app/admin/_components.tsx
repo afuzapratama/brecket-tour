@@ -21,6 +21,7 @@ import {
   removeParticipantFromGroup,
   removeTournamentParticipant,
   signOut,
+  updateGroupTopQualify,
   updateGroupParticipantTm,
   updateMatchResult,
   updatePlayoffResult,
@@ -437,12 +438,26 @@ export function GroupControl({ overview }: { overview: Overview }) {
               className="rounded-lg border border-white/10 bg-background/55 p-4 shadow-lg shadow-black/10"
               key={group.id}
             >
-              <div className="flex items-start justify-between gap-3">
+              <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
                 <div>
                   <h3 className="font-bold">{group.name}</h3>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    Top {group.topQualifyCount} qualify
-                  </p>
+                  <form
+                    action={updateGroupTopQualify}
+                    className="mt-2 grid max-w-xs grid-cols-[auto_80px_auto] items-center gap-2"
+                  >
+                    <input name="groupId" type="hidden" value={group.id} />
+                    <label className="text-xs text-muted-foreground">Top</label>
+                    <input
+                      className="h-9 min-w-0 rounded-md border border-white/10 bg-background/70 px-2 text-sm outline-none ring-primary/40 transition focus:ring-2"
+                      defaultValue={group.topQualifyCount}
+                      min="1"
+                      name="topQualifyCount"
+                      type="number"
+                    />
+                    <Button size="sm" type="submit" variant="outline">
+                      Save
+                    </Button>
+                  </form>
                 </div>
                 <form action={deleteGroup}>
                   <input name="groupId" type="hidden" value={group.id} />
@@ -623,7 +638,7 @@ export function MatchControl({ overview }: { overview: Overview }) {
                             {match.participantA?.team.name ?? "TBD"} vs {match.participantB?.team.name ?? "TBD"}
                           </p>
                           <p className="mt-1 text-xs text-muted-foreground">
-                            {match.scoreA ?? "-"} - {match.scoreB ?? "-"}
+                            BO{match.bestOf} - {match.scoreA ?? "-"} - {match.scoreB ?? "-"}
                           </p>
                         </div>
                         <span
@@ -652,13 +667,13 @@ export function MatchControl({ overview }: { overview: Overview }) {
                             <span className="truncate" title={match.participantA?.team.name ?? "TBD"}>
                               {match.participantA?.team.name ?? "TBD"}
                             </span>
-                            <input className="h-10 rounded-md border border-white/10 bg-background/70 px-2 text-sm text-foreground outline-none ring-primary/40 transition focus:ring-2" defaultValue={match.scoreA ?? 0} min="0" name="scoreA" type="number" />
+                            <input className="h-10 rounded-md border border-white/10 bg-background/70 px-2 text-sm text-foreground outline-none ring-primary/40 transition focus:ring-2" defaultValue={match.scoreA ?? ""} min="0" name="scoreA" type="number" />
                           </label>
                           <label className="grid min-w-0 gap-1 text-xs text-muted-foreground">
                             <span className="truncate" title={match.participantB?.team.name ?? "TBD"}>
                               {match.participantB?.team.name ?? "TBD"}
                             </span>
-                            <input className="h-10 rounded-md border border-white/10 bg-background/70 px-2 text-sm text-foreground outline-none ring-primary/40 transition focus:ring-2" defaultValue={match.scoreB ?? 0} min="0" name="scoreB" type="number" />
+                            <input className="h-10 rounded-md border border-white/10 bg-background/70 px-2 text-sm text-foreground outline-none ring-primary/40 transition focus:ring-2" defaultValue={match.scoreB ?? ""} min="0" name="scoreB" type="number" />
                           </label>
                         </div>
 
@@ -688,8 +703,12 @@ export function MatchControl({ overview }: { overview: Overview }) {
 
                         <div className="grid gap-2">
                           <p className="text-xs font-semibold uppercase text-muted-foreground">
-                            Status & Jadwal
+                            BO, Status & Jadwal
                           </p>
+                          <label className="grid gap-1 text-xs text-muted-foreground">
+                            <span>Best of</span>
+                            <input className="h-10 rounded-md border border-white/10 bg-background/70 px-2 text-sm outline-none ring-primary/40 transition focus:ring-2" defaultValue={match.bestOf} min="1" max="9" name="bestOf" type="number" />
+                          </label>
                           <select className="h-10 rounded-md border border-white/10 bg-background/70 px-2 text-sm outline-none ring-primary/40 transition focus:ring-2" defaultValue={match.status} name="status">
                             {matchStatuses.map((status) => (
                               <option
@@ -860,6 +879,9 @@ function PlayoffMatchForm({
           <span className="text-sm font-black text-foreground">
             {match.scoreA ?? "-"} - {match.scoreB ?? "-"}
           </span>
+          <span className="text-xs font-semibold text-muted-foreground">
+            BO{match.bestOf}
+          </span>
         </div>
       </summary>
 
@@ -877,18 +899,22 @@ function PlayoffMatchForm({
           </p>
           <label className="grid gap-2 text-xs text-muted-foreground">
             <span className="truncate">{match.participantA?.team.name ?? "TBD"}</span>
-            <input className="h-10 rounded-md border border-white/10 bg-background/70 px-2 text-sm text-foreground outline-none ring-primary/40 transition focus:ring-2" defaultValue={match.scoreA ?? 0} min="0" name="scoreA" type="number" />
+            <input className="h-10 rounded-md border border-white/10 bg-background/70 px-2 text-sm text-foreground outline-none ring-primary/40 transition focus:ring-2" defaultValue={match.scoreA ?? ""} min="0" name="scoreA" type="number" />
           </label>
           <label className="grid gap-2 text-xs text-muted-foreground">
             <span className="truncate">{match.participantB?.team.name ?? "TBD"}</span>
-            <input className="h-10 rounded-md border border-white/10 bg-background/70 px-2 text-sm text-foreground outline-none ring-primary/40 transition focus:ring-2" defaultValue={match.scoreB ?? 0} min="0" name="scoreB" type="number" />
+            <input className="h-10 rounded-md border border-white/10 bg-background/70 px-2 text-sm text-foreground outline-none ring-primary/40 transition focus:ring-2" defaultValue={match.scoreB ?? ""} min="0" name="scoreB" type="number" />
           </label>
         </div>
 
         <div className="grid gap-2">
           <p className="text-xs font-semibold uppercase text-muted-foreground">
-            Status & Jadwal
+            BO, Status & Jadwal
           </p>
+          <label className="grid gap-1 text-xs text-muted-foreground">
+            <span>Best of</span>
+            <input className="h-10 rounded-md border border-white/10 bg-background/70 px-2 text-sm text-foreground outline-none ring-primary/40 transition focus:ring-2" defaultValue={match.bestOf} min="1" max="9" name="bestOf" type="number" />
+          </label>
           <select
             className="h-10 rounded-md border border-white/10 bg-background/70 px-2 text-sm outline-none ring-primary/40 transition focus:ring-2"
             defaultValue={match.status ?? "scheduled"}
@@ -907,11 +933,7 @@ function PlayoffMatchForm({
           <input className="h-10 rounded-md border border-white/10 bg-background/70 px-2 text-sm text-foreground outline-none ring-primary/40 transition focus:ring-2" defaultValue={formatDateTimeLocal(match.scheduledAt)} name="scheduledAt" type="datetime-local" />
         </div>
 
-        <Button
-          className="w-full"
-          disabled={!match.participantA || !match.participantB}
-          type="submit"
-        >
+        <Button className="w-full" type="submit">
           Save Match
         </Button>
       </form>

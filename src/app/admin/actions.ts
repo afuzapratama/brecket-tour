@@ -46,6 +46,11 @@ const groupFormSchema = z.object({
   topQualifyCount: z.coerce.number().int().min(1).max(32),
 });
 
+const updateGroupTopQualifySchema = z.object({
+  groupId: z.uuid(),
+  topQualifyCount: z.coerce.number().int().min(1).max(32),
+});
+
 const groupIdSchema = z.object({
   groupId: z.uuid(),
 });
@@ -64,10 +69,16 @@ const groupParticipantTmSchema = z.object({
   tm: z.coerce.number().int().min(0).max(9999),
 });
 
+const optionalScoreSchema = z.preprocess(
+  (value) => (value === "" || value == null ? null : value),
+  z.coerce.number().int().min(0).max(99).nullable(),
+);
+
 const updateMatchResultSchema = z.object({
   matchId: z.uuid(),
-  scoreA: z.coerce.number().int().min(0).max(99),
-  scoreB: z.coerce.number().int().min(0).max(99),
+  scoreA: optionalScoreSchema,
+  scoreB: optionalScoreSchema,
+  bestOf: z.coerce.number().int().min(1).max(9),
   killsA: z.preprocess(
     (value) => (value === "" ? undefined : value),
     z.coerce.number().int().min(0).max(999).optional(),
@@ -351,6 +362,30 @@ export async function deleteGroup(formData: FormData) {
   refreshTournamentPages();
 }
 
+export async function updateGroupTopQualify(formData: FormData) {
+  await requireAdminSession();
+
+  const parseResult = updateGroupTopQualifySchema.safeParse({
+    groupId: formData.get("groupId"),
+    topQualifyCount: formData.get("topQualifyCount"),
+  });
+
+  if (!parseResult.success) {
+    await handleInvalidActionData();
+    return;
+  }
+
+  const parsed = parseResult.data;
+
+  await prisma.group.update({
+    where: { id: parsed.groupId },
+    data: { topQualifyCount: parsed.topQualifyCount },
+  });
+
+  await setAdminFlash("Jumlah top qualifier group berhasil disimpan.");
+  refreshTournamentPages();
+}
+
 export async function assignParticipantToGroup(formData: FormData) {
   await requireAdminSession();
 
@@ -518,6 +553,7 @@ export async function generateGroupMatches(formData: FormData) {
         matchNumber: match.matchNumber,
         participantAId: match.participantAId,
         participantBId: match.participantBId,
+        bestOf: 1,
         status: "scheduled" as const,
       })),
     }),
@@ -539,6 +575,7 @@ export async function updateMatchResult(formData: FormData) {
     matchId: formData.get("matchId"),
     scoreA: formData.get("scoreA"),
     scoreB: formData.get("scoreB"),
+    bestOf: formData.get("bestOf"),
     killsA: formData.get("killsA"),
     killsB: formData.get("killsB"),
     status: formData.get("status"),
@@ -551,10 +588,13 @@ export async function updateMatchResult(formData: FormData) {
   }
 
   const parsed = parseResult.data;
+  const hasScores = parsed.scoreA !== null && parsed.scoreB !== null;
+  const scoreA = hasScores ? parsed.scoreA : null;
+  const scoreB = hasScores ? parsed.scoreB : null;
 
   const winnerParticipantId =
-    parsed.scoreA !== parsed.scoreB
-      ? parsed.scoreA > parsed.scoreB
+    scoreA !== null && scoreB !== null && scoreA !== scoreB
+      ? scoreA > scoreB
         ? formData.get("participantAId")
         : formData.get("participantBId")
       : null;
@@ -568,6 +608,7 @@ export async function updateMatchResult(formData: FormData) {
     data: {
       scoreA: parsed.scoreA,
       scoreB: parsed.scoreB,
+      bestOf: parsed.bestOf,
       status: effectiveStatus,
       scheduledAt: getOptionalScheduleDate(parsed.scheduledAt),
       winnerParticipantId:
@@ -579,7 +620,7 @@ export async function updateMatchResult(formData: FormData) {
     },
   });
 
-  if (updatedMatch.groupId) {
+  if (updatedMatch.groupId && hasScores) {
     await prisma.matchGame.upsert({
       where: {
         matchId_gameNumber: {
@@ -608,6 +649,13 @@ export async function updateMatchResult(formData: FormData) {
         deathsB: parsed.killsA ?? 0,
         winnerParticipantId:
           typeof winnerParticipantId === "string" ? winnerParticipantId : null,
+      },
+    });
+  } else if (updatedMatch.groupId) {
+    await prisma.matchGame.deleteMany({
+      where: {
+        matchId: parsed.matchId,
+        gameNumber: 1,
       },
     });
   }
@@ -873,6 +921,11 @@ export async function generatePlayoffs(formData: FormData) {
             generatedMatch.slotB.participantId !== "bye"
               ? generatedMatch.slotB.participantId
               : null,
+          bestOf:
+            generatedMatch.roundNumber === finalRoundNumber &&
+            generatedMatch.matchNumber === 1
+              ? 5
+              : 3,
           status: "scheduled",
         },
       });
@@ -909,6 +962,7 @@ export async function generatePlayoffs(formData: FormData) {
           stageType: "playoff",
           roundNumber: finalRoundNumber,
           matchNumber: 2,
+          bestOf: 3,
           status: "scheduled",
         },
       });
@@ -969,6 +1023,7 @@ export async function updatePlayoffResult(formData: FormData) {
     matchId: formData.get("matchId"),
     scoreA: formData.get("scoreA"),
     scoreB: formData.get("scoreB"),
+    bestOf: formData.get("bestOf"),
     status: formData.get("status"),
     scheduledAt: formData.get("scheduledAt"),
   });
@@ -979,12 +1034,15 @@ export async function updatePlayoffResult(formData: FormData) {
   }
 
   const parsed = parseResult.data;
+  const hasScores = parsed.scoreA !== null && parsed.scoreB !== null;
+  const scoreA = hasScores ? parsed.scoreA : null;
+  const scoreB = hasScores ? parsed.scoreB : null;
 
   const participantAId = String(formData.get("participantAId") ?? "");
   const participantBId = String(formData.get("participantBId") ?? "");
   const winnerParticipantId =
-    participantAId && participantBId && parsed.scoreA !== parsed.scoreB
-      ? parsed.scoreA > parsed.scoreB
+    scoreA !== null && scoreB !== null && participantAId && participantBId && scoreA !== scoreB
+      ? scoreA > scoreB
         ? participantAId
         : participantBId
       : null;
@@ -1005,6 +1063,7 @@ export async function updatePlayoffResult(formData: FormData) {
     data: {
       scoreA: parsed.scoreA,
       scoreB: parsed.scoreB,
+      bestOf: parsed.bestOf,
       status: effectiveStatus,
       scheduledAt: getOptionalScheduleDate(parsed.scheduledAt),
       winnerParticipantId: safeWinnerParticipantId,

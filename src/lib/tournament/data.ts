@@ -32,6 +32,7 @@ type OverviewMatch = {
   scheduledAt?: Date | null;
   scoreA?: number | null;
   scoreB?: number | null;
+  bestOf: number;
   killsA?: number | null;
   killsB?: number | null;
   participantA?: OverviewParticipant | null;
@@ -90,6 +91,7 @@ export type TournamentOverview = {
     scheduledAt?: Date | null;
     scoreA?: number | null;
     scoreB?: number | null;
+    bestOf: number;
     participantA?: OverviewParticipant | null;
     participantB?: OverviewParticipant | null;
     winnerParticipantId?: string | null;
@@ -102,6 +104,7 @@ export type TournamentOverview = {
     scheduledAt?: Date | null;
     scoreA?: number | null;
     scoreB?: number | null;
+    bestOf: number;
     participantA?: OverviewParticipant | null;
     participantB?: OverviewParticipant | null;
     winnerParticipantId?: string | null;
@@ -220,6 +223,7 @@ function getDemoOverview(): TournamentOverview {
       scheduledAt: null,
       scoreA: match.scoreA,
       scoreB: match.scoreB,
+      bestOf: 1,
       killsA: match.games?.[0]?.killsA ?? null,
       killsB: match.games?.[0]?.killsB ?? null,
       participantA: addDemoIconKeys(participantFromDemo(match.participantAId)),
@@ -234,6 +238,7 @@ function getDemoOverview(): TournamentOverview {
       scheduledAt: null,
       scoreA: null,
       scoreB: null,
+      bestOf: match.roundNumber === 2 && match.matchNumber === 1 ? 5 : 3,
       participantA: addDemoIconKeys(participantFromDemo(match.slotA?.participantId)),
       participantB: addDemoIconKeys(participantFromDemo(match.slotB?.participantId)),
       winnerParticipantId: null,
@@ -348,6 +353,7 @@ export async function getTournamentOverview(
       scheduledAt: match.scheduledAt,
       scoreA: match.scoreA,
       scoreB: match.scoreB,
+      bestOf: match.bestOf,
       participantA: match.participantA
         ? {
             id: match.participantA.id,
@@ -458,6 +464,7 @@ export async function getTournamentOverview(
         scheduledAt: match.scheduledAt,
         scoreA: match.scoreA,
         scoreB: match.scoreB,
+        bestOf: match.bestOf,
         killsA: match.games[0]?.killsA ?? null,
         killsB: match.games[0]?.killsB ?? null,
         participantA: match.participantA

@@ -22,6 +22,10 @@ function formatParticipant(participant?: { team: { name: string } } | null) {
 
 export default async function Home() {
   const overview = await getTournamentOverview();
+  const previewFinalRound = Math.max(
+    0,
+    ...overview.playoffPreview.map((match) => match.roundNumber),
+  );
   const publicBracket =
     overview.bracket.length > 0
       ? overview.bracket
@@ -30,6 +34,10 @@ export default async function Home() {
           status: "TBD",
           scoreA: null,
           scoreB: null,
+          bestOf:
+            match.roundNumber === previewFinalRound && match.matchNumber === 1
+              ? 5
+              : 3,
           participantA: null,
           participantB: null,
           winnerParticipantId: null,
@@ -48,6 +56,7 @@ export default async function Home() {
             status: "TBD",
             scoreA: null,
             scoreB: null,
+            bestOf: 3,
             participantA: null,
             participantB: null,
             winnerParticipantId: null,
